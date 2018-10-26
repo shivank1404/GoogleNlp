@@ -19,9 +19,9 @@ package com.google.cloud.android.language;
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.services.language.v1.CloudNaturalLanguageScopes;
 
+import android.support.v4.content.AsyncTaskLoader;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.support.v4.content.AsyncTaskLoader;
 import android.util.Log;
 
 import java.io.IOException;
@@ -67,7 +67,7 @@ public class AccessTokenLoader extends AsyncTaskLoader<String> {
         // of this client app. You should never do this in your app. Instead, store the file in your
         // server and obtain an access token from there.
         // *******************
-        final InputStream stream = getContext().getResources().openRawResource(R.raw.credential);
+        final InputStream stream = getContext().getResources().openRawResource(R.raw.credentials);
         try {
             final GoogleCredential credential = GoogleCredential.fromStream(stream)
                     .createScoped(CloudNaturalLanguageScopes.all());

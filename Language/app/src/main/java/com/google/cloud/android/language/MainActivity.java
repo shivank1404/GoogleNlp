@@ -33,19 +33,15 @@ import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.Loader;
 import android.support.v4.content.res.ResourcesCompat;
-import android.support.v4.view.ViewCompat;
 import android.support.v4.view.ViewPager;
-import android.support.v4.view.ViewPropertyAnimatorListenerAdapter;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
-import android.view.KeyEvent;
+import android.util.DisplayMetrics;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.inputmethod.EditorInfo;
-import android.view.inputmethod.InputMethodManager;
-import android.widget.EditText;
-import android.widget.TextView;
-
+import android.view.WindowManager;
+import android.widget.ProgressBar;
 
 public class MainActivity extends AppCompatActivity implements ApiFragment.Callback {
 
@@ -59,63 +55,29 @@ public class MainActivity extends AppCompatActivity implements ApiFragment.Callb
 
     private static final String STATE_SHOWING_RESULTS = "showing_results";
 
-    private final View.OnClickListener mOnClickListener = new View.OnClickListener() {
-        @Override
-        public void onClick(View view) {
-            switch (view.getId()) {
-                // The icon button is clicked; start analyzing the input.
-                case R.id.analyze:
-                    startAnalyze();
-                    break;
-            }
-        }
-    };
-
-    private final TextView.OnEditorActionListener mOnEditorActionListener
-            = new TextView.OnEditorActionListener() {
-        @Override
-        public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-            // Enter pressed; Start analyzing the input.
-            if (actionId == EditorInfo.IME_ACTION_DONE ||
-                    (event.getAction() == KeyEvent.ACTION_DOWN &&
-                            event.getKeyCode() == KeyEvent.KEYCODE_ENTER)) {
-                startAnalyze();
-                return true;
-            }
-            return false;
-        }
-    };
-
-    private View mIntroduction;
-
-    private View mResults;
-
-    private View mProgress;
-
-    private EditText mInput;
-
     private ViewPager mViewPager;
+    private ProgressBar mProgressBar;
 
     private ResultPagerAdapter mAdapter;
 
-    /**
-     * Whether the result view is animating to hide.
-     */
-    private boolean mHidingResult;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
+        DisplayMetrics m = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(m);
+
+        WindowManager.LayoutParams params = getWindow().getAttributes();
+        params.width = m.widthPixels*4/5;
+        params.height = m.heightPixels*3/4;
+        params.gravity = Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL;
+        getWindow().setAttributes(params);
+
+        overridePendingTransition(R.anim.slide_in_up, android.R.anim.slide_out_right);
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        mIntroduction = findViewById(R.id.introduction);
-        mResults = findViewById(R.id.results);
-        mProgress = findViewById(R.id.progress);
-
-        // Set up the input EditText so that it accepts multiple lines
-        mInput = (EditText) findViewById(R.id.input);
-        mInput.setHorizontallyScrolling(false);
-        mInput.setMaxLines(Integer.MAX_VALUE);
+        mProgressBar = findViewById(R.id.loader);
 
         // Set up the view pager
         final FragmentManager fm = getSupportFragmentManager();
@@ -136,18 +98,7 @@ public class MainActivity extends AppCompatActivity implements ApiFragment.Callb
         } else {
             // Configuration changes; restore UI states
             boolean results = savedInstanceState.getBoolean(STATE_SHOWING_RESULTS);
-            if (results) {
-                mIntroduction.setVisibility(View.GONE);
-                mResults.setVisibility(View.VISIBLE);
-                mProgress.setVisibility(View.INVISIBLE);
-            } else {
-                mResults.setVisibility(View.INVISIBLE);
-            }
         }
-
-        // Bind event listeners
-        mInput.setOnEditorActionListener(mOnEditorActionListener);
-        findViewById(R.id.analyze).setOnClickListener(mOnClickListener);
 
         // Prepare the API
         if (getApiFragment() == null) {
@@ -157,9 +108,9 @@ public class MainActivity extends AppCompatActivity implements ApiFragment.Callb
     }
 
     @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putBoolean(STATE_SHOWING_RESULTS, mResults.getVisibility() == View.VISIBLE);
+    protected void onPostResume() {
+        super.onPostResume();
+        startAnalyze();
     }
 
     private void handleShareIntent() {
@@ -167,9 +118,6 @@ public class MainActivity extends AppCompatActivity implements ApiFragment.Callb
         if (TextUtils.equals(intent.getAction(), Intent.ACTION_SEND)
                 && TextUtils.equals(intent.getType(), "text/plain")) {
             String text = intent.getStringExtra(Intent.EXTRA_TEXT);
-            if (text != null) {
-                mInput.setText(text);
-            }
         }
     }
 
@@ -198,75 +146,21 @@ public class MainActivity extends AppCompatActivity implements ApiFragment.Callb
     }
 
     private void startAnalyze() {
-        // Hide the software keyboard if it is up
-        mInput.clearFocus();
-        InputMethodManager ime = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-        ime.hideSoftInputFromWindow(mInput.getWindowToken(), 0);
-
-        // Show progress
-        showProgress();
-
         // Call the API
-        final String text = mInput.getText().toString();
+        final String text = getIntent().getStringExtra("text");
+
         getApiFragment().analyzeEntities(text);
         getApiFragment().analyzeSentiment(text);
         getApiFragment().analyzeSyntax(text);
     }
 
-    private void showProgress() {
-        mIntroduction.setVisibility(View.GONE);
-        if (mResults.getVisibility() == View.VISIBLE) {
-            mHidingResult = true;
-            ViewCompat.animate(mResults)
-                    .alpha(0.f)
-                    .setListener(new ViewPropertyAnimatorListenerAdapter() {
-                        @Override
-                        public void onAnimationEnd(View view) {
-                            mHidingResult = false;
-                            view.setVisibility(View.INVISIBLE);
-                        }
-                    });
-        }
-        if (mProgress.getVisibility() == View.INVISIBLE) {
-            mProgress.setVisibility(View.VISIBLE);
-            ViewCompat.setAlpha(mProgress, 0.f);
-            ViewCompat.animate(mProgress)
-                    .alpha(1.f)
-                    .setListener(null)
-                    .start();
-        }
-    }
-
-    private void showResults() {
-        mIntroduction.setVisibility(View.GONE);
-        if (mProgress.getVisibility() == View.VISIBLE) {
-            ViewCompat.animate(mProgress)
-                    .alpha(0.f)
-                    .setListener(new ViewPropertyAnimatorListenerAdapter() {
-                        @Override
-                        public void onAnimationEnd(View view) {
-                            view.setVisibility(View.INVISIBLE);
-                        }
-                    });
-        }
-        if (mHidingResult) {
-            ViewCompat.animate(mResults).cancel();
-        }
-        if (mResults.getVisibility() == View.INVISIBLE) {
-            mResults.setVisibility(View.VISIBLE);
-            ViewCompat.setAlpha(mResults, 0.01f);
-            ViewCompat.animate(mResults)
-                    .alpha(1.f)
-                    .setListener(null)
-                    .start();
-        }
-    }
 
     @RequiresApi(api = Build.VERSION_CODES.HONEYCOMB)
     @Override
     public void onEntitiesReady(EntityInfo[] entities) {
         if (mViewPager.getCurrentItem() == API_ENTITIES) {
-            showResults();
+            if(mProgressBar.getVisibility()!=View.GONE)
+                mProgressBar.setVisibility(View.GONE);
         }
         mAdapter.setEntities(entities);
     }
@@ -274,7 +168,8 @@ public class MainActivity extends AppCompatActivity implements ApiFragment.Callb
     @Override
     public void onSentimentReady(SentimentInfo sentiment) {
         if (mViewPager.getCurrentItem() == API_SENTIMENT) {
-            showResults();
+            if(mProgressBar.getVisibility()!=View.GONE)
+                mProgressBar.setVisibility(View.GONE);
         }
         mAdapter.setSentiment(sentiment);
     }
@@ -282,7 +177,8 @@ public class MainActivity extends AppCompatActivity implements ApiFragment.Callb
     @Override
     public void onSyntaxReady(TokenInfo[] tokens) {
         if (mViewPager.getCurrentItem() == API_SYNTAX) {
-            showResults();
+            if(mProgressBar.getVisibility()!=View.GONE)
+                mProgressBar.setVisibility(View.GONE);
         }
         mAdapter.setTokens(tokens);
     }

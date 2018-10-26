@@ -22,12 +22,4 @@
         <item name="colorAccent">@color/accent</item>
     </style>
 
-    <style name="ResultsActivityTheme" parent="Theme.AppCompat.Light.NoActionBar">
-        <item name="android:windowBackground">@drawable/corner_drawable</item>
-        <item name="android:windowIsTranslucent">true</item>
-        <item name="android:backgroundDimEnabled">true</item>
-        <item name="android:backgroundDimAmount">0.3</item>
-        <item name="android:windowCloseOnTouchOutside">true</item>
-    </style>
-
 </resources>
